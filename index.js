@@ -1,11 +1,11 @@
 'use strict';
 require('dotenv').config()
 const express = require('express');
+const fs = require('fs');
 const cors = require('cors')
 const bodyParser = require('body-parser');
 const requestify = require('requestify');
 const {response} = require("express");
-const {all} = require("express/lib/application");
 
 const PORT = 8000;
 const BASE_URL = 'https://api.hubapi.com';
@@ -39,7 +39,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
  */
 app.get('/contacts/lifecyclestages/count/by/months', (req, res)=>{
     let URL = BASE_URL + '/contacts/search/v1/external/lifecyclestages?fromTimestamp='+req.query.from+"&toTimestamp="+req.query.to;
-    delay(1200).then(
+    delay(1500).then(
     requestify.get(URL, API_OPTIONS)
         .then((result)=>{
             if(result.code===200) {
@@ -82,7 +82,7 @@ app.get('/contacts/lifecyclestages/total/count/', async (req, res) => {
                 limit: 0,
             };
 
-            await delay(1200);
+            await delay(1500);
             const result = await requestify.post(URL, body, API_OPTIONS);
             if (result.code === 200) {
                 let body = JSON.parse(result.body);
@@ -90,7 +90,6 @@ app.get('/contacts/lifecyclestages/total/count/', async (req, res) => {
                 ret.push(stageCount);
             } else {
                 res.status(result.code).json(response.body);
-                throw new Error(response.body);
             }
         }
 
@@ -114,7 +113,7 @@ app.get('/deals/by/stage', async (req, res) => {
     const pageSize = 100; // Number of objects to fetch per request
 
     try {
-        const dateFilter = (req.query.stage != undefined && req.query.stage === "closedwon") ? "closedate" : "createdate";
+        const dateFilter = (req.query.stage !== undefined && req.query.stage === "closedwon") ? "closedate" : "createdate";
         const filters = [
             {
                 propertyName: dateFilter,
@@ -156,7 +155,7 @@ app.get('/deals/by/stage', async (req, res) => {
                 after: pageNumber > 1 ? after : undefined,
             };
 
-            await delay(1200);
+            await delay(1500);
             const result = await requestify.post(URL, body, API_OPTIONS);
 
             if (result.code === 200) {
@@ -214,12 +213,12 @@ app.get('/contacts/by/lifecyclestage', async (req, res) => {
                         filters: filters,
                     },
                 ],
-                properties: ["email", "firstname", "lastname", "createdate", "closedate", "hs_lifecyclestage_lead_date"],
+                properties: ["email", "firstname", "lastname", "createdate", "closedate", "hs_lifecyclestage_lead_date", "hs_lifecyclestage_subscriber_date"],
                 limit: pageSize,
                 after: pageNumber > 1 ? after : undefined
             };
 
-            await delay(1200);
+            await delay(1500);
             const result = await requestify.post(URL, body, API_OPTIONS);
 
             if (result.code === 200) {
@@ -245,6 +244,56 @@ app.get('/contacts/by/lifecyclestage', async (req, res) => {
         res.status(500).send("Proxy encountered an error: " + err.body.message);
     }
 });
+
+/**
+ * Retrieves the variables stored in the data.json file
+ */
+app.get('/constants', (req, res) => {
+    fs.readFile('data.json', 'utf8', (err, data) => {
+        if (err) {
+            console.error('Error reading data.json:', err);
+            return res.status(500).json({ error: 'Internal Server Error' });
+        }
+
+        try {
+            const variables = JSON.parse(data);
+            res.json(variables);
+        } catch (err) {
+            console.error('Error parsing data.json:', err);
+            return res.status(500).json({ error: 'Internal Server Error' });
+        }
+    });
+});
+
+/**
+ *  Updates the variables stored in the data.json file. The request body should be a JSON object containing the variables you want to update
+ */
+app.put('/constants', express.json(), (req, res) => {
+    fs.readFile('data.json', 'utf8', (err, data) => {
+        if (err) {
+            console.error('Error reading data.json:', err);
+            return res.status(500).json({ error: 'Internal Server Error' });
+        }
+
+        try {
+            const variables = JSON.parse(data);
+            const updatedVariables = { ...variables, ...req.body };
+
+            fs.writeFile('data.json', JSON.stringify(updatedVariables), 'utf8', (err) => {
+                if (err) {
+                    console.error('Error writing data.json:', err);
+                    return res.status(500).json({ error: 'Internal Server Error' });
+                }
+
+                res.json({ success: true });
+            });
+        } catch (err) {
+            console.error('Error parsing data.json:', err);
+            return res.status(500).json({ error: 'Internal Server Error' });
+        }
+    });
+});
+
 
 
 app.listen(PORT, ()=>{
